@@ -72,7 +72,6 @@ jobs:
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
         run: |
-          umask 077
           {
             echo "DOCKER_USERNAME=${DOCKER_USERNAME}"
             echo "IMAGE_TAG=${IMAGE_TAG}"
@@ -86,6 +85,7 @@ jobs:
             echo "CORS_ORIGIN=${CORS_ORIGIN}"
             echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}"
           } > .env
+          chmod 644 .env
 
       - name: Copy docker-compose.yml + .env to server
         uses: appleboy/scp-action@v0.1.7
