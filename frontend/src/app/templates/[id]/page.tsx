@@ -19,7 +19,7 @@ export default function EditTemplatePage() {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: { name: string; content: string }) =>
+    mutationFn: (input: import('@/types/template').UpdateTemplateInput) =>
       templatesApi.update(id, input),
     onSuccess: () => {
       toast.success('Template updated');
@@ -53,7 +53,20 @@ export default function EditTemplatePage() {
       <div className="rounded-lg border bg-card p-6">
         <TemplateForm
           submitLabel="Save changes"
-          defaultValues={{ name: data.name, content: data.content }}
+          defaultValues={{
+            name: data.name,
+            kind: data.kind,
+            content: data.content,
+            mediaUrl: data.mediaUrl ?? '',
+            disableWebPagePreview: data.disableWebPagePreview,
+            buttons: data.buttons
+              ? {
+                  rows: data.buttons.rows.map((row) => ({
+                    buttons: row.map((b) => ({ text: b.text, url: b.url })),
+                  })),
+                }
+              : undefined,
+          }}
           onSubmit={(values) => mutation.mutateAsync(values)}
           isSubmitting={mutation.isPending}
         />
