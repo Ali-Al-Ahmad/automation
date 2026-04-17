@@ -74,7 +74,7 @@ jobs:
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
             echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}"
           } > .env
-          chmod 600 .env
+          chmod 644 .env
 
       - name: Copy compose + backend .env to server
         uses: appleboy/scp-action@v0.1.7
@@ -94,6 +94,7 @@ jobs:
           envs: DOCKER_USERNAME,DOCKER_PASSWORD,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,DEPLOY_DIR
           script: |
             set -euo pipefail
+            chmod 600 .env
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker compose pull
             docker compose up -d
