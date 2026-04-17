@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -57,10 +58,12 @@ jobs:
     name: Deploy to server
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_DIR: /home/${{ secrets.SERVER_USER }}/automation
     steps:
       - uses: actions/checkout@v4
 
-      - name: Render env files from secrets
+      - name: Render .env from secrets
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
@@ -71,48 +74,56 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
         run: |
+          set -euo pipefail
+          : "${DOCKER_USERNAME:?DOCKER_USERNAME secret is required}"
+          : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD secret is required}"
+          : "${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN secret is required}"
+          : "${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID secret is required}"
           {
             echo "DOCKER_USERNAME=${DOCKER_USERNAME}"
             echo "IMAGE_TAG=${IMAGE_TAG}"
             echo "POSTGRES_USER=${POSTGRES_USER:-postgres}"
             echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
             echo "POSTGRES_DB=${POSTGRES_DB:-automation}"
-            echo "NODE_ENV=production"
-            echo "PORT=3001"
             echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
-            echo "CORS_ORIGIN=${CORS_ORIGIN}"
-          } > .env_backend
-          chmod 644 .env_backend
+            echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}"
+          } > .env
+          chmod 600 .env
 
-          {
-            echo "NODE_ENV=production"
-            echo "PORT=3000"
-            echo "HOSTNAME=0.0.0.0"
-          } > .env_frontend
-          chmod 644 .env_frontend
+      - name: Ensure deploy directory exists
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SECRET }}
+          script: mkdir -p "${{ env.DEPLOY_DIR }}"
 
-      - name: Copy compose + env files to server
+      - name: Copy compose + env to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
-          source: "docker-compose.yml,.env_backend,.env_frontend"
-          target: /home/${{ secrets.SERVER_USER }}/
+          source: "docker-compose.yml,.env"
+          target: ${{ env.DEPLOY_DIR }}
 
       - name: Pull images & restart stack
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
-          envs: DOCKER_USERNAME,DOCKER_PASSWORD
+          envs: DOCKER_USERNAME,DOCKER_PASSWORD,DEPLOY_DIR
           script: |
-            cd "/home/${{ secrets.SERVER_USER }}"
+            set -euo pipefail
+            cd "$DEPLOY_DIR"
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker compose --env-file .env_backend pull
-            docker compose --env-file .env_backend up -d
+            docker compose pull
+            docker compose up -d
             docker image prune -f
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}

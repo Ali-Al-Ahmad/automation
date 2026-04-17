@@ -1,6 +1,13 @@
 # Deployment
 
-CI/CD via GitHub Actions: every push to `main` builds the `backend` and `frontend` Docker images, pushes them to Docker Hub, then SCPs `docker-compose.yml` and a freshly-rendered `.env` to the server and runs `docker compose up -d`. The repo only ships `.env.example`; real values live in GitHub Secrets.
+CI/CD via GitHub Actions. Every push to `main`:
+
+1. Builds `backend` and `frontend` Docker images and pushes them to Docker Hub.
+2. Renders a `.env` file from GitHub Secrets.
+3. SCPs `docker-compose.yml` + `.env` to the server.
+4. SSHs in and runs `docker compose pull && docker compose up -d`.
+
+Only `.env.example` is committed. Real values live in GitHub Secrets and are rendered into the server `.env` at deploy time.
 
 ## Architecture
 
@@ -11,16 +18,40 @@ push to main
 GitHub Actions
  ├── build & push  $DOCKER_USERNAME/automation-backend:{sha,latest}   → Docker Hub
  ├── build & push  $DOCKER_USERNAME/automation-frontend:{sha,latest}  → Docker Hub
- │     (NEXT_PUBLIC_API_BASE_URL passed as --build-arg, baked into the bundle)
+ │     (NEXT_PUBLIC_API_BASE_URL baked into the bundle as a build-arg)
  └── deploy
-       ├── render .env from secrets (with IMAGE_TAG=<sha>)
-       ├── scp docker-compose.yml + .env  →  $SERVER_HOST:$DEPLOY_PATH
-       └── ssh: docker compose pull && docker compose up -d && docker image prune -f
+       ├── render  .env  from secrets (with IMAGE_TAG=sha-<short>)
+       ├── scp     docker-compose.yml + .env  →  $SERVER:~/automation/
+       └── ssh     docker compose pull && up -d && image prune
 ```
+
+Docker Compose auto-loads `.env` from the working directory — no `--env-file` flag, no per-service env files, no duplication. Container environments are populated by `environment:` blocks in [docker-compose.yml](docker-compose.yml) using `${VAR}` interpolation against that single `.env`.
+
+## GitHub Secrets
+
+Settings → Secrets and variables → Actions → **New repository secret**.
+
+| Secret | Used by | Notes |
+|---|---|---|
+| `DOCKER_USERNAME` | CI + server `.env` | Docker Hub username — also the image namespace |
+| `DOCKER_PASSWORD` | CI + server login | Docker Hub → Account Settings → Security → New Access Token |
+| `SERVER_HOST` | CI only | `1.2.3.4` or `server.example.com` |
+| `SERVER_USER` | CI only | `deploy` (or `ubuntu`, etc.) |
+| `SERVER_PORT` | CI only | optional — defaults to `22` |
+| `SERVER_SECRET` | CI only | full private key contents (incl. `-----BEGIN…END-----` lines) |
+| `POSTGRES_USER` | server `.env` | optional — defaults to `postgres` |
+| `POSTGRES_PASSWORD` | server `.env` | **required** — strong random string |
+| `POSTGRES_DB` | server `.env` | optional — defaults to `automation` |
+| `TELEGRAM_BOT_TOKEN` | server `.env` | **required** — from @BotFather |
+| `TELEGRAM_CHAT_ID` | server `.env` | **required** — target chat id |
+| `CORS_ORIGIN` | server `.env` | public frontend URL, e.g. `https://app.example.com` |
+| `NEXT_PUBLIC_API_BASE_URL` | CI build-arg | public backend URL, e.g. `https://api.example.com/api` — baked into the frontend image |
+
+`SERVER_*` and `DOCKER_PASSWORD` stay in GitHub Secrets only (never written to the server). Everything else is rendered into the server `.env`.
 
 ## One-time server bootstrap
 
-On a fresh Ubuntu/Debian server:
+Fresh Ubuntu/Debian host:
 
 ### 1. Create deploy user
 
@@ -35,6 +66,8 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker deploy
 ```
 
+Log out and back in (or `newgrp docker`) so the group change takes effect.
+
 ### 3. SSH key for GitHub Actions
 
 On your local machine:
@@ -44,22 +77,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/automation_deploy -C "gh-actions-deploy"
 ssh-copy-id -i ~/.ssh/automation_deploy.pub deploy@<server>
 ```
 
-The **private** key (`~/.ssh/automation_deploy`) goes into the `SERVER_SECRET` GitHub secret.
+The **private** key (`~/.ssh/automation_deploy`) goes into the `SERVER_SECRET` GitHub secret (full file contents, including the begin/end lines).
 
-### 4. Deploy directory
+### 4. Firewall
 
-```bash
-sudo mkdir -p /opt/automation
-sudo chown deploy:deploy /opt/automation
-```
+Open `80`/`443` (and whatever your reverse proxy uses). Do **not** expose `5432` — Postgres only listens on the internal Docker network.
 
-### 5. Firewall
+If you're temporarily accessing the app without a reverse proxy, also open `3000` (frontend) and `3001` (backend) — but put a proxy in front before going live.
 
-Open `80`/`443` (and whatever your reverse proxy uses). Do **not** expose `5432` — Postgres is reachable only from the `backend` container on the internal compose network.
+### 5. Initial Prisma migration (one-time)
 
-### 6. First migration (one-time, before the first deploy)
-
-The backend container runs `prisma migrate deploy` on every start. That requires committed migrations under `backend/prisma/migrations/`. Generate the initial one locally:
+The backend container runs `prisma migrate deploy` on every start, which requires committed migrations under `backend/prisma/migrations/`. Generate the first one locally **before** the first deploy:
 
 ```bash
 cd backend
@@ -68,71 +96,60 @@ git add prisma/migrations
 git commit -m "chore: initial prisma migration"
 ```
 
-## GitHub Secrets
+Migrations are already committed in this repo (`20260417000000_init`, `20260418000000_rich_message_kinds`).
 
-Settings → Secrets and variables → Actions → **New repository secret**.
+## Local dry-run
 
-| Secret | Example / notes |
-|---|---|
-| `DOCKER_USERNAME` | Your Docker Hub username — also the image namespace |
-| `DOCKER_PASSWORD` | Docker Hub → Account Settings → Security → New Access Token (read/write/delete) |
-| `SERVER_HOST` | `1.2.3.4` or `server.example.com` |
-| `SERVER_USER` | `deploy` (or `ubuntu`, etc.) |
-| `SERVER_PORT` | optional — defaults to `22` |
-| `SERVER_SECRET` | full contents of `~/.ssh/automation_deploy` private key (including the `-----BEGIN ... -----END` lines) |
-| `DEPLOY_PATH` | `/opt/automation` |
-| `POSTGRES_USER` | optional — defaults to `postgres` |
-| `POSTGRES_PASSWORD` | strong random string |
-| `POSTGRES_DB` | optional — defaults to `automation` |
-| `TELEGRAM_BOT_TOKEN` | from @BotFather |
-| `TELEGRAM_CHAT_ID` | target chat id |
-| `CORS_ORIGIN` | public frontend URL, e.g. `https://app.example.com` |
-| `NEXT_PUBLIC_API_BASE_URL` | public backend URL, e.g. `https://api.example.com/api` — baked into the frontend image |
-
-> **Where each secret ends up:** `DOCKER_USERNAME` is also written into the server `.env` (compose needs it for the image namespace). `DOCKER_PASSWORD`, `SERVER_HOST`, `SERVER_USER`, `SERVER_PORT`, `SERVER_SECRET`, `DEPLOY_PATH` stay in **GitHub Secrets only** — they are used by the workflow to reach the server and never need to be on it. Everything else (Postgres, Telegram, CORS, base URL) is rendered into the server `.env` by the workflow.
-
-## Local production-like dry run
-
-Before pushing to main, verify the stack works end-to-end on your machine:
+Before pushing to `main`, verify the stack boots locally with production-style images:
 
 ```bash
-cp .env.example .env          # fill in real values
-docker compose build          # build images locally instead of pulling
+cp .env.example .env            # fill in real values
+docker compose pull             # or build locally (see below)
 docker compose up -d
-docker compose ps             # all healthy?
+docker compose ps               # all healthy?
 docker compose logs -f backend
 ```
 
-Note: `docker compose build` ignores the `image:` keys for building purposes if there's no `build:` block — for a local dry run you can temporarily add `build: ./backend` and `build: ./frontend` to the compose file, or just run the production image flow once CI pushes images.
+`docker-compose.yml` does not declare `build:` blocks — it only pulls from Docker Hub. To build locally instead of pulling, temporarily add:
+
+```yaml
+  backend:
+    build: ./backend
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+```
 
 ## Verifying a deploy
 
 ```bash
 ssh deploy@<server>
-cd /opt/automation
+cd ~/automation
 docker compose ps
 docker compose logs --tail=50 backend
-curl -s http://localhost:3001/api/...    # adjust to a real endpoint
-curl -sI http://localhost:3000           # Next.js index
-cat .env | grep IMAGE_TAG                # confirms the SHA matches the latest push
+curl -sI http://localhost:3000                    # Next.js
+curl -s  http://localhost:3001/api/templates      # NestJS (adjust endpoint)
+grep IMAGE_TAG .env                               # should match the latest commit SHA
 ```
 
 ## Rollback
 
-Every deploy writes `IMAGE_TAG=sha-<short>` into `.env`. To roll back to a previous build:
+Every deploy writes `IMAGE_TAG=sha-<short>` into `.env`. To roll back:
 
 ```bash
 ssh deploy@<server>
-cd /opt/automation
+cd ~/automation
 sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=sha-<old-sha>/' .env
 docker compose pull && docker compose up -d
 ```
 
-The old image must still exist on Docker Hub (default retention is forever for free accounts).
+The old image must still exist on Docker Hub (free accounts keep images indefinitely by default).
 
 ## Out of scope
 
-- **TLS / reverse proxy** — recommended next step. Drop a Caddy or Traefik service into `docker-compose.yml` in front of `frontend:3000` and `backend:3001` and stop publishing host ports for those services.
-- **Zero-downtime deploys** — current flow has a few seconds of downtime on container recreate. Fix with a reverse proxy + rolling restart strategy.
+- **TLS / reverse proxy** — recommended next step. Drop Caddy or Traefik into `docker-compose.yml` in front of `frontend:3000` + `backend:3001` and stop publishing those host ports.
+- **Zero-downtime deploys** — current flow has a few seconds of downtime on container recreate.
 - **Database backups** — `pgdata` is a named volume. Add a nightly `pg_dump` cron when ready.
-- **Staging environment** — single environment for now; duplicate the workflow with a different branch + secret set when needed.
+- **Staging** — single environment for now; duplicate the workflow with a different branch + secret set when needed.
