@@ -4,28 +4,22 @@ services:
     container_name: automation-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-automation}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-automation}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   backend:
-    image: ${DOCKER_USERNAME:?DOCKER_USERNAME is required}/automation-backend:${IMAGE_TAG:-latest}
+    image: ${DOCKER_USERNAME:?DOCKER_USERNAME is required}/automation-backend:20
     container_name: automation-backend
     restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-automation}?schema=public
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID is required}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +27,7 @@ services:
       - "3001:3001"
 
   frontend:
-    image: ${DOCKER_USERNAME}/automation-frontend:${IMAGE_TAG:-latest}
+    image: ${DOCKER_USERNAME}/automation-frontend:20
     container_name: automation-frontend
     restart: unless-stopped
     environment:
