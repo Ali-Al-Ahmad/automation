@@ -94,7 +94,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
           source: "docker-compose.yml,.env"
-          target: ${{ secrets.DEPLOY_PATH }}
+          target: /home/${{ secrets.SERVER_USER }}/
 
       - name: Pull images & restart stack
         uses: appleboy/ssh-action@v1.0.3
@@ -102,14 +102,13 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
-          envs: DEPLOY_PATH,DOCKER_USERNAME,DOCKER_PASSWORD
+          envs: DOCKER_USERNAME,DOCKER_PASSWORD
           script: |
-            cd "$DEPLOY_PATH"
+            cd "/home/${{ secrets.SERVER_USER }}"
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker compose pull
             docker compose up -d
             docker image prune -f
         env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
