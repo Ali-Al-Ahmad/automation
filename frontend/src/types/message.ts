@@ -13,6 +13,10 @@ export interface InlineKeyboard {
   rows: InlineButton[][];
 }
 
+export interface InlineKeyboardInput {
+  rows: Array<{ buttons: InlineButton[] }>;
+}
+
 export interface Message {
   id: string;
   kind: MessageKind;
@@ -39,7 +43,7 @@ export interface CreateMessageInput {
   content?: string;
   mediaUrl?: string;
   disableWebPagePreview?: boolean;
-  buttons?: InlineKeyboard;
+  buttons?: InlineKeyboardInput;
   scheduledAt: string;
   templateId?: string;
 }
@@ -49,6 +53,6 @@ export interface UpdateMessageInput {
   content?: string;
   mediaUrl?: string;
   disableWebPagePreview?: boolean;
-  buttons?: InlineKeyboard;
+  buttons?: InlineKeyboardInput;
   scheduledAt?: string;
 }

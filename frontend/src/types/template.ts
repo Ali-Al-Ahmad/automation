@@ -1,4 +1,4 @@
-import type { InlineKeyboard, MessageKind } from './message';
+import type { InlineKeyboard, InlineKeyboardInput, MessageKind } from './message';
 
 export interface Template {
   id: string;
@@ -18,7 +18,7 @@ export interface CreateTemplateInput {
   content?: string;
   mediaUrl?: string;
   disableWebPagePreview?: boolean;
-  buttons?: InlineKeyboard;
+  buttons?: InlineKeyboardInput;
 }
 
 export interface UpdateTemplateInput {
@@ -27,5 +27,5 @@ export interface UpdateTemplateInput {
   content?: string;
   mediaUrl?: string;
   disableWebPagePreview?: boolean;
-  buttons?: InlineKeyboard;
+  buttons?: InlineKeyboardInput;
 }
