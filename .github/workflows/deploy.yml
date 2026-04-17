@@ -26,8 +26,8 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build & push backend
         uses: docker/build-push-action@v5
@@ -35,8 +35,8 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/automation-backend:${{ steps.vars.outputs.image_tag }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/automation-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/automation-backend:${{ steps.vars.outputs.image_tag }}
+            ${{ secrets.DOCKER_USERNAME }}/automation-backend:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -48,8 +48,8 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/automation-frontend:${{ steps.vars.outputs.image_tag }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/automation-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/automation-frontend:${{ steps.vars.outputs.image_tag }}
+            ${{ secrets.DOCKER_USERNAME }}/automation-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Render .env from secrets
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -74,7 +74,7 @@ jobs:
         run: |
           umask 077
           {
-            echo "DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}"
+            echo "DOCKER_USERNAME=${DOCKER_USERNAME}"
             echo "IMAGE_TAG=${IMAGE_TAG}"
             echo "POSTGRES_USER=${POSTGRES_USER:-postgres}"
             echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
@@ -90,38 +90,38 @@ jobs:
       - name: Install SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.SERVER_SECRET }}
 
       - name: Trust server host key
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${SERVER_PORT:-22}" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
 
       - name: Copy docker-compose.yml + .env to server
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          scp -P "${SSH_PORT:-22}" docker-compose.yml .env \
-            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
+          scp -P "${SERVER_PORT:-22}" docker-compose.yml .env \
+            "${SERVER_USER}@${SERVER_HOST}:${DEPLOY_PATH}/"
 
       - name: Pull images & restart stack
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-          ssh -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" \
+          ssh -p "${SERVER_PORT:-22}" "${SERVER_USER}@${SERVER_HOST}" \
             "cd '${DEPLOY_PATH}' \
-             && echo '${DOCKERHUB_TOKEN}' | docker login -u '${DOCKERHUB_USERNAME}' --password-stdin \
+             && echo '${DOCKER_PASSWORD}' | docker login -u '${DOCKER_USERNAME}' --password-stdin \
              && docker compose pull \
              && docker compose up -d \
              && docker image prune -f"

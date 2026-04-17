@@ -9,12 +9,12 @@ push to main
    │
    ▼
 GitHub Actions
- ├── build & push  $DOCKERHUB_USERNAME/automation-backend:{sha,latest}   → Docker Hub
- ├── build & push  $DOCKERHUB_USERNAME/automation-frontend:{sha,latest}  → Docker Hub
+ ├── build & push  $DOCKER_USERNAME/automation-backend:{sha,latest}   → Docker Hub
+ ├── build & push  $DOCKER_USERNAME/automation-frontend:{sha,latest}  → Docker Hub
  │     (NEXT_PUBLIC_API_BASE_URL passed as --build-arg, baked into the bundle)
  └── deploy
        ├── render .env from secrets (with IMAGE_TAG=<sha>)
-       ├── scp docker-compose.yml + .env  →  $SSH_HOST:$DEPLOY_PATH
+       ├── scp docker-compose.yml + .env  →  $SERVER_HOST:$DEPLOY_PATH
        └── ssh: docker compose pull && docker compose up -d && docker image prune -f
 ```
 
@@ -44,7 +44,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/automation_deploy -C "gh-actions-deploy"
 ssh-copy-id -i ~/.ssh/automation_deploy.pub deploy@<server>
 ```
 
-The **private** key (`~/.ssh/automation_deploy`) goes into the `SSH_PRIVATE_KEY` GitHub secret.
+The **private** key (`~/.ssh/automation_deploy`) goes into the `SERVER_SECRET` GitHub secret.
 
 ### 4. Deploy directory
 
@@ -74,12 +74,12 @@ Settings → Secrets and variables → Actions → **New repository secret**.
 
 | Secret | Example / notes |
 |---|---|
-| `DOCKERHUB_USERNAME` | Your Docker Hub username — also the image namespace |
-| `DOCKERHUB_TOKEN` | Docker Hub → Account Settings → Security → New Access Token (read/write/delete) |
-| `SSH_HOST` | `1.2.3.4` or `server.example.com` |
-| `SSH_USER` | `deploy` |
-| `SSH_PORT` | optional — defaults to `22` |
-| `SSH_PRIVATE_KEY` | full contents of `~/.ssh/automation_deploy` (including the `-----BEGIN ... -----END` lines) |
+| `DOCKER_USERNAME` | Your Docker Hub username — also the image namespace |
+| `DOCKER_PASSWORD` | Docker Hub → Account Settings → Security → New Access Token (read/write/delete) |
+| `SERVER_HOST` | `1.2.3.4` or `server.example.com` |
+| `SERVER_USER` | `deploy` (or `ubuntu`, etc.) |
+| `SERVER_PORT` | optional — defaults to `22` |
+| `SERVER_SECRET` | full contents of `~/.ssh/automation_deploy` private key (including the `-----BEGIN ... -----END` lines) |
 | `DEPLOY_PATH` | `/opt/automation` |
 | `POSTGRES_USER` | optional — defaults to `postgres` |
 | `POSTGRES_PASSWORD` | strong random string |
@@ -88,6 +88,8 @@ Settings → Secrets and variables → Actions → **New repository secret**.
 | `TELEGRAM_CHAT_ID` | target chat id |
 | `CORS_ORIGIN` | public frontend URL, e.g. `https://app.example.com` |
 | `NEXT_PUBLIC_API_BASE_URL` | public backend URL, e.g. `https://api.example.com/api` — baked into the frontend image |
+
+> **Where each secret ends up:** `DOCKER_USERNAME` is also written into the server `.env` (compose needs it for the image namespace). `DOCKER_PASSWORD`, `SERVER_HOST`, `SERVER_USER`, `SERVER_PORT`, `SERVER_SECRET`, `DEPLOY_PATH` stay in **GitHub Secrets only** — they are used by the workflow to reach the server and never need to be on it. Everything else (Postgres, Telegram, CORS, base URL) is rendered into the server `.env` by the workflow.
 
 ## Local production-like dry run
 
