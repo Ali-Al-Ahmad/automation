@@ -3,14 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: automation-postgres
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+    env_file: .env_backend
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-automation}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,7 +16,7 @@ services:
     image: ${DOCKER_USERNAME}/automation-backend:${IMAGE_TAG:-latest}
     container_name: automation-backend
     restart: unless-stopped
-    env_file: .env
+    env_file: .env_backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     depends_on:
@@ -32,7 +29,7 @@ services:
     image: ${DOCKER_USERNAME}/automation-frontend:${IMAGE_TAG:-latest}
     container_name: automation-frontend
     restart: unless-stopped
-    env_file: .env
+    env_file: .env_frontend
     depends_on:
       - backend
     ports:

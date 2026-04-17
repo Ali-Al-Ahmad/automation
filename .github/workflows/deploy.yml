@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Render .env from secrets
+      - name: Render env files from secrets
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
@@ -70,7 +70,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
-          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
         run: |
           {
             echo "DOCKER_USERNAME=${DOCKER_USERNAME}"
@@ -83,17 +82,23 @@ jobs:
             echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
             echo "CORS_ORIGIN=${CORS_ORIGIN}"
-            echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}"
-          } > .env
-          chmod 644 .env
+          } > .env_backend
+          chmod 644 .env_backend
 
-      - name: Copy docker-compose.yml + .env to server
+          {
+            echo "NODE_ENV=production"
+            echo "PORT=3000"
+            echo "HOSTNAME=0.0.0.0"
+          } > .env_frontend
+          chmod 644 .env_frontend
+
+      - name: Copy compose + env files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
-          source: "docker-compose.yml,.env"
+          source: "docker-compose.yml,.env_backend,.env_frontend"
           target: /home/${{ secrets.SERVER_USER }}/
 
       - name: Pull images & restart stack
@@ -106,8 +111,8 @@ jobs:
           script: |
             cd "/home/${{ secrets.SERVER_USER }}"
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker compose pull
-            docker compose up -d
+            docker compose --env-file .env_backend pull
+            docker compose --env-file .env_backend up -d
             docker image prune -f
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
