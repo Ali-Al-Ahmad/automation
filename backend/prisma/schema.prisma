@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+enum MessageKind {
+  TEXT
+  PHOTO
+}
+
+model Message {
+  id                    String        @id @default(uuid())
+  kind                  MessageKind   @default(TEXT)
+  content               String        @db.Text
+  mediaUrl              String?       @db.Text
+  disableWebPagePreview Boolean       @default(false)
+  buttons               Json?
+  scheduledAt           DateTime
+  status                MessageStatus @default(PENDING)
+  retryCount            Int           @default(0)
+  lastError             String?       @db.Text
+  sentAt                DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([scheduledAt, status])
+}
+
+model Template {
+  id                    String      @id @default(uuid())
+  name                  String      @unique
+  kind                  MessageKind @default(TEXT)
+  content               String      @db.Text
+  mediaUrl              String?     @db.Text
+  disableWebPagePreview Boolean     @default(false)
+  buttons               Json?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+}
