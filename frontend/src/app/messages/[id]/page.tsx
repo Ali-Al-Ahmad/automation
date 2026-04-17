@@ -21,7 +21,7 @@ export default function EditMessagePage() {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: { content: string; scheduledAt: string }) =>
+    mutationFn: (input: import('@/types/message').UpdateMessageInput) =>
       messagesApi.update(id, input),
     onSuccess: () => {
       toast.success('Message updated');
@@ -68,10 +68,54 @@ export default function EditMessagePage() {
           <div className="space-y-4">
             <div>
               <div className="text-xs font-medium uppercase text-muted-foreground">
-                Content
+                Kind
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm">{data.content}</p>
+              <p className="mt-1 text-sm">{data.kind}</p>
             </div>
+            {data.mediaUrl && (
+              <div>
+                <div className="text-xs font-medium uppercase text-muted-foreground">
+                  Photo URL
+                </div>
+                <a
+                  href={data.mediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 block break-all text-sm text-primary underline"
+                >
+                  {data.mediaUrl}
+                </a>
+              </div>
+            )}
+            {data.content && (
+              <div>
+                <div className="text-xs font-medium uppercase text-muted-foreground">
+                  {data.kind === 'PHOTO' ? 'Caption' : 'Content'}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{data.content}</p>
+              </div>
+            )}
+            {data.buttons && data.buttons.rows.length > 0 && (
+              <div>
+                <div className="text-xs font-medium uppercase text-muted-foreground">
+                  Buttons
+                </div>
+                <div className="mt-1 space-y-1">
+                  {data.buttons.rows.map((row, i) => (
+                    <div key={i} className="flex flex-wrap gap-2">
+                      {row.map((b, j) => (
+                        <span
+                          key={j}
+                          className="rounded-md border px-2 py-1 text-xs"
+                        >
+                          {b.text} → {b.url}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {data.lastError && (
               <div>
                 <div className="text-xs font-medium uppercase text-muted-foreground">
@@ -88,7 +132,17 @@ export default function EditMessagePage() {
             submitLabel="Save changes"
             showTemplatePicker={false}
             defaultValues={{
+              kind: data.kind,
               content: data.content,
+              mediaUrl: data.mediaUrl ?? '',
+              disableWebPagePreview: data.disableWebPagePreview,
+              buttons: data.buttons
+                ? {
+                    rows: data.buttons.rows.map((row) => ({
+                      buttons: row.map((b) => ({ text: b.text, url: b.url })),
+                    })),
+                  }
+                : undefined,
               scheduledAtLocal: toLocalInputValue(data.scheduledAt),
             }}
             onSubmit={(values) => mutation.mutateAsync(values)}

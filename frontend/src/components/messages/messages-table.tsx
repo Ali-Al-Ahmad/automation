@@ -13,10 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { messagesApi } from '@/lib/api/messages';
 import { formatLocal } from '@/lib/format';
 import type { Message } from '@/types/message';
 import { StatusBadge } from './status-badge';
+
+function buttonCount(m: Message): number {
+  if (!m.buttons) return 0;
+  return m.buttons.rows.reduce((acc, row) => acc + row.length, 0);
+}
 
 export function MessagesTable({ messages }: { messages: Message[] }) {
   const queryClient = useQueryClient();
@@ -57,8 +63,20 @@ export function MessagesTable({ messages }: { messages: Message[] }) {
         <TableBody>
           {messages.map((m) => (
             <TableRow key={m.id}>
-              <TableCell className="max-w-[320px] truncate" title={m.content}>
-                {m.content}
+              <TableCell className="max-w-[320px]" title={m.content}>
+                <div className="flex items-center gap-2">
+                  <Badge variant="slate">{m.kind}</Badge>
+                  {buttonCount(m) > 0 && (
+                    <Badge variant="slate">
+                      {buttonCount(m)} btn{buttonCount(m) === 1 ? '' : 's'}
+                    </Badge>
+                  )}
+                  <span className="truncate">
+                    {m.kind === 'PHOTO' && !m.content
+                      ? (m.mediaUrl ?? '(photo)')
+                      : m.content}
+                  </span>
+                </div>
               </TableCell>
               <TableCell className="whitespace-nowrap">
                 {formatLocal(m.scheduledAt)}
