@@ -24,7 +24,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3001:3001"
+      - "80:3001"
 
   frontend:
     image: ${DOCKER_USERNAME}/automation-frontend:20
