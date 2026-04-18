@@ -5,6 +5,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Table,
   TableBody,
@@ -37,7 +38,7 @@ export function TemplatesList({ templates }: { templates: Template[] }) {
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -50,7 +51,10 @@ export function TemplatesList({ templates }: { templates: Template[] }) {
           {templates.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">{t.name}</TableCell>
-              <TableCell className="max-w-[420px] truncate" title={t.content}>
+              <TableCell
+                className="max-w-[200px] truncate sm:max-w-[320px] lg:max-w-[420px]"
+                title={t.content}
+              >
                 {t.content}
               </TableCell>
               <TableCell className="text-right">
@@ -61,19 +65,22 @@ export function TemplatesList({ templates }: { templates: Template[] }) {
                       <span className="sr-only">Edit</span>
                     </Link>
                   </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      if (confirm(`Delete template "${t.name}"?`)) {
-                        deleteMutation.mutate(t.id);
-                      }
-                    }}
-                    disabled={deleteMutation.isPending}
+                  <ConfirmDialog
+                    title={`Delete "${t.name}"?`}
+                    description="Messages you already scheduled from this template are unaffected."
+                    confirmLabel="Delete"
+                    destructive
+                    onConfirm={() => deleteMutation.mutate(t.id)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Delete</span>
-                  </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </ConfirmDialog>
                 </div>
               </TableCell>
             </TableRow>

@@ -5,6 +5,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Table,
   TableBody,
@@ -49,21 +50,21 @@ export function MessagesTable({ messages }: { messages: Message[] }) {
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40%]">Content</TableHead>
             <TableHead>Scheduled</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead className="hidden lg:table-cell">Created</TableHead>
             <TableHead className="w-[100px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {messages.map((m) => (
             <TableRow key={m.id}>
-              <TableCell className="max-w-[320px]" title={m.content}>
+              <TableCell className="max-w-[200px] sm:max-w-[320px]" title={m.content}>
                 <div className="flex items-center gap-2">
                   <Badge variant="slate">{m.kind}</Badge>
                   {buttonCount(m) > 0 && (
@@ -84,7 +85,7 @@ export function MessagesTable({ messages }: { messages: Message[] }) {
               <TableCell>
                 <StatusBadge message={m} />
               </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">
+              <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">
                 {formatLocal(m.createdAt)}
               </TableCell>
               <TableCell className="text-right">
@@ -97,19 +98,22 @@ export function MessagesTable({ messages }: { messages: Message[] }) {
                       </Link>
                     </Button>
                   )}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      if (confirm('Delete this message?')) {
-                        deleteMutation.mutate(m.id);
-                      }
-                    }}
-                    disabled={deleteMutation.isPending}
+                  <ConfirmDialog
+                    title="Delete this message?"
+                    description="This can't be undone. If the message was scheduled, it will not be sent."
+                    confirmLabel="Delete"
+                    destructive
+                    onConfirm={() => deleteMutation.mutate(m.id)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Delete</span>
-                  </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </ConfirmDialog>
                 </div>
               </TableCell>
             </TableRow>

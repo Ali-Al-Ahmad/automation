@@ -49,7 +49,6 @@ export const bodySchema = z.object({
   kind: z.enum(['TEXT', 'PHOTO']),
   content: z.string().trim().max(4096).optional().default(''),
   mediaUrl: z.string().trim().optional().default(''),
-  disableWebPagePreview: z.boolean().default(false),
   buttons: buttonsSchema,
 });
 

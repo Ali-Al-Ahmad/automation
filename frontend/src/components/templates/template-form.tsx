@@ -9,7 +9,6 @@ import {
   type MessageFormValues,
 } from '@/components/messages/message-form-schema';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -67,7 +66,6 @@ const DEFAULTS: TemplateFormValues = {
   kind: 'TEXT',
   content: '',
   mediaUrl: '',
-  disableWebPagePreview: false,
   buttons: undefined,
 };
 
@@ -98,7 +96,6 @@ export function TemplateForm({
     };
     if (values.kind === 'TEXT') {
       payload.content = values.content!.trim();
-      if (values.disableWebPagePreview) payload.disableWebPagePreview = true;
     } else {
       payload.mediaUrl = values.mediaUrl!.trim();
       const caption = values.content?.trim();
@@ -188,28 +185,6 @@ export function TemplateForm({
           <p className="text-xs text-destructive">{errors.content.message}</p>
         )}
       </div>
-
-      {kind === 'TEXT' && (
-        <Controller
-          name="disableWebPagePreview"
-          control={control}
-          render={({ field }) => (
-            <label className="flex items-start gap-2 text-sm">
-              <Checkbox
-                checked={field.value}
-                onCheckedChange={(v) => field.onChange(v === true)}
-                className="mt-0.5"
-              />
-              <span>
-                Disable link preview
-                <span className="ml-1 text-xs text-muted-foreground">
-                  (suppresses URL cards)
-                </span>
-              </span>
-            </label>
-          )}
-        />
-      )}
 
       <ButtonsEditor
         control={control as unknown as import('react-hook-form').Control<MessageFormValues>}

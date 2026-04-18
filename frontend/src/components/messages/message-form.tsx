@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm, type FieldErrors } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -40,7 +39,6 @@ const DEFAULT_VALUES: MessageFormValues = {
   kind: 'TEXT',
   content: '',
   mediaUrl: '',
-  disableWebPagePreview: false,
   buttons: undefined,
   scheduledAtLocal: '',
 };
@@ -70,7 +68,8 @@ export function MessageForm({
     control,
     register,
     handleSubmit,
-    setValue,
+    getValues,
+    reset,
     watch,
     formState: { errors },
   } = useForm<MessageFormValues>({
@@ -103,7 +102,6 @@ export function MessageForm({
 
       if (values.kind === 'TEXT') {
         payload.content = values.content!.trim();
-        if (values.disableWebPagePreview) payload.disableWebPagePreview = true;
       } else {
         payload.mediaUrl = values.mediaUrl!.trim();
         const caption = values.content?.trim();
@@ -134,59 +132,47 @@ export function MessageForm({
       {showTemplatePicker && (
         <div className="space-y-2">
           <Label>Template (optional)</Label>
-          <Controller
-            name="kind"
-            control={control}
-            render={() => (
-              <Select
-                onValueChange={(id) => {
-                  const template = templatesQuery.data?.find(
-                    (t) => t.id === id,
-                  );
-                  if (!template) return;
-                  setValue('kind', template.kind, { shouldValidate: true });
-                  setValue('content', template.content ?? '');
-                  setValue('mediaUrl', template.mediaUrl ?? '');
-                  setValue(
-                    'disableWebPagePreview',
-                    template.disableWebPagePreview,
-                  );
-                  setValue(
-                    'buttons',
-                    template.buttons
-                      ? {
-                          rows: template.buttons.rows.map((row) => ({
-                            buttons: row.map((b) => ({
-                              text: b.text,
-                              url: b.url,
-                            })),
-                          })),
-                        }
-                      : undefined,
-                  );
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      templatesQuery.isLoading
-                        ? 'Loading templates…'
-                        : (templatesQuery.data?.length ?? 0) === 0
-                          ? 'No templates yet'
-                          : 'Pick a template to auto-fill the form'
+          <Select
+            onValueChange={(id) => {
+              const template = templatesQuery.data?.find((t) => t.id === id);
+              if (!template) return;
+              reset({
+                ...getValues(),
+                kind: template.kind,
+                content: template.content ?? '',
+                mediaUrl: template.mediaUrl ?? '',
+                buttons: template.buttons
+                  ? {
+                      rows: template.buttons.rows.map((row) => ({
+                        buttons: row.map((b) => ({
+                          text: b.text,
+                          url: b.url,
+                        })),
+                      })),
                     }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {templatesQuery.data?.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} · {t.kind}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
+                  : undefined,
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  templatesQuery.isLoading
+                    ? 'Loading templates…'
+                    : (templatesQuery.data?.length ?? 0) === 0
+                      ? 'No templates yet'
+                      : 'Pick a template to auto-fill the form'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {templatesQuery.data?.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name} · {t.kind}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -248,28 +234,6 @@ export function MessageForm({
           <p className="text-xs text-destructive">{errors.content.message}</p>
         )}
       </div>
-
-      {kind === 'TEXT' && (
-        <Controller
-          name="disableWebPagePreview"
-          control={control}
-          render={({ field }) => (
-            <label className="flex items-start gap-2 text-sm">
-              <Checkbox
-                checked={field.value}
-                onCheckedChange={(v) => field.onChange(v === true)}
-                className="mt-0.5"
-              />
-              <span>
-                Disable link preview
-                <span className="ml-1 text-xs text-muted-foreground">
-                  (suppresses auto-generated cards for URLs in the text)
-                </span>
-              </span>
-            </label>
-          )}
-        />
-      )}
 
       <ButtonsEditor control={control} register={register} errors={errors} />
 

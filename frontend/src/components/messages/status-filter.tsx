@@ -7,7 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MessageStatusValues, type MessageStatus } from '@/types/message';
+import type { MessageStatus } from '@/types/message';
+
+const FILTER_VALUES = ['PENDING', 'SENT', 'FAILED'] as const;
 
 type StatusFilterProps = {
   value: MessageStatus | 'ALL';
@@ -25,7 +27,7 @@ export function StatusFilter({ value, onChange }: StatusFilterProps) {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="ALL">All statuses</SelectItem>
-        {MessageStatusValues.map((s) => (
+        {FILTER_VALUES.map((s) => (
           <SelectItem key={s} value={s}>
             {s.charAt(0) + s.slice(1).toLowerCase()}
           </SelectItem>

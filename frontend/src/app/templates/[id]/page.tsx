@@ -58,7 +58,6 @@ export default function EditTemplatePage() {
             kind: data.kind,
             content: data.content,
             mediaUrl: data.mediaUrl ?? '',
-            disableWebPagePreview: data.disableWebPagePreview,
             buttons: data.buttons
               ? {
                   rows: data.buttons.rows.map((row) => ({
