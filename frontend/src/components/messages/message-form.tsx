@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, type FieldErrors } from 'react-hook-form';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,20 @@ const DEFAULT_VALUES: MessageFormValues = {
   scheduledAtLocal: '',
 };
 
+function firstErrorMessage(errs: FieldErrors<MessageFormValues>): string | null {
+  const walk = (node: unknown): string | null => {
+    if (!node || typeof node !== 'object') return null;
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.message === 'string' && obj.message) return obj.message;
+    for (const key of Object.keys(obj)) {
+      const found = walk(obj[key]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(errs);
+}
+
 export function MessageForm({
   defaultValues,
   submitLabel,
@@ -75,37 +90,44 @@ export function MessageForm({
     ? formatUtc(toUtcIso(scheduledAtLocal))
     : '';
 
-  const submit = handleSubmit(async (values) => {
-    const iso = toUtcIso(values.scheduledAtLocal);
-    if (!iso) return;
+  const submit = handleSubmit(
+    async (values) => {
+      const iso =
+        toUtcIso(values.scheduledAtLocal ?? '') ||
+        new Date(Date.now() + 60_000).toISOString();
 
-    const payload: MessageFormSubmit = {
-      kind: values.kind,
-      scheduledAt: iso,
-    };
-
-    if (values.kind === 'TEXT') {
-      payload.content = values.content!.trim();
-      if (values.disableWebPagePreview) payload.disableWebPagePreview = true;
-    } else {
-      payload.mediaUrl = values.mediaUrl!.trim();
-      const caption = values.content?.trim();
-      if (caption) payload.content = caption;
-    }
-
-    if (values.buttons && values.buttons.rows.length > 0) {
-      payload.buttons = {
-        rows: values.buttons.rows.map((r) => ({
-          buttons: r.buttons.map((b) => ({
-            text: b.text.trim(),
-            url: b.url.trim(),
-          })),
-        })),
+      const payload: MessageFormSubmit = {
+        kind: values.kind,
+        scheduledAt: iso,
       };
-    }
 
-    await onSubmit(payload);
-  });
+      if (values.kind === 'TEXT') {
+        payload.content = values.content!.trim();
+        if (values.disableWebPagePreview) payload.disableWebPagePreview = true;
+      } else {
+        payload.mediaUrl = values.mediaUrl!.trim();
+        const caption = values.content?.trim();
+        if (caption) payload.content = caption;
+      }
+
+      if (values.buttons && values.buttons.rows.length > 0) {
+        payload.buttons = {
+          rows: values.buttons.rows.map((r) => ({
+            buttons: r.buttons.map((b) => ({
+              text: b.text.trim(),
+              url: b.url.trim(),
+            })),
+          })),
+        };
+      }
+
+      await onSubmit(payload);
+    },
+    (errs) => {
+      const msg = firstErrorMessage(errs) ?? 'Please fix the errors in the form';
+      toast.error(msg);
+    },
+  );
 
   return (
     <form onSubmit={submit} className="space-y-5">
@@ -252,7 +274,7 @@ export function MessageForm({
       <ButtonsEditor control={control} register={register} errors={errors} />
 
       <div className="space-y-2">
-        <Label htmlFor="scheduledAtLocal">Scheduled time</Label>
+        <Label htmlFor="scheduledAtLocal">Scheduled time (optional)</Label>
         <Input
           id="scheduledAtLocal"
           type="datetime-local"
@@ -263,11 +285,11 @@ export function MessageForm({
             {errors.scheduledAtLocal.message}
           </p>
         )}
-        {utcPreview && (
-          <p className="text-xs text-muted-foreground">
-            Will send at {utcPreview}
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground">
+          {utcPreview
+            ? `Will send at ${utcPreview}`
+            : 'Leave empty to send as soon as possible.'}
+        </p>
       </div>
 
       <div className="flex justify-end">
