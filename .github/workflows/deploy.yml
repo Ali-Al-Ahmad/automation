@@ -51,8 +51,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Render backend .env from secrets
+      - name: Render .env from secrets
         env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
@@ -61,12 +62,20 @@ jobs:
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
         run: |
           set -euo pipefail
+          : "${DOCKER_USERNAME:?DOCKER_USERNAME secret is required}"
           : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD secret is required}"
           : "${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN secret is required}"
           : "${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID secret is required}"
           PG_USER="${POSTGRES_USER:-postgres}"
           PG_DB="${POSTGRES_DB:-automation}"
           {
+            echo "# --- Compose interpolation (image names + postgres container) ---"
+            echo "DOCKER_USERNAME=${DOCKER_USERNAME}"
+            echo "POSTGRES_USER=${PG_USER}"
+            echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
+            echo "POSTGRES_DB=${PG_DB}"
+            echo ""
+            echo "# --- Backend runtime ---"
             echo "NODE_ENV=production"
             echo "PORT=3001"
             echo "DATABASE_URL=postgresql://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}?schema=public"
@@ -91,17 +100,11 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SECRET }}
-          envs: DOCKER_USERNAME,DOCKER_PASSWORD,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,DEPLOY_DIR
           script: |
             set -euo pipefail
+            cd "${{ env.DEPLOY_DIR }}"
             chmod 600 .env
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            echo '${{ secrets.DOCKER_PASSWORD }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin
             docker compose pull
             docker compose up -d
             docker image prune -f
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'postgres' }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'automation' }}
