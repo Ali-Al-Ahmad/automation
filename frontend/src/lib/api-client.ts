@@ -1,5 +1,4 @@
-const baseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
+const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export class ApiError extends Error {
   constructor(
@@ -24,16 +23,18 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { method = 'GET', body, query } = options;
 
-  const url = new URL(`${baseUrl}${path}`);
+  const params = new URLSearchParams();
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== '') {
-        url.searchParams.set(key, String(value));
+        params.set(key, String(value));
       }
     }
   }
+  const qs = params.toString();
+  const url = `${baseUrl}${path}${qs ? `?${qs}` : ''}`;
 
-  const res = await fetch(url.toString(), {
+  const res = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
