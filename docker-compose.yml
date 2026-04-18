@@ -24,7 +24,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "80:3001"
+      - "3001:3001"
 
   frontend:
     image: ${DOCKER_USERNAME}/automation-frontend:20
@@ -37,7 +37,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "80:3000"
 
 volumes:
   pgdata:
