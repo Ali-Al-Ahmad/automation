@@ -121,7 +121,22 @@ jobs:
             chmod 600 .env
             echo '${{ secrets.DOCKER_PASSWORD }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin
             docker compose pull
-            docker compose up -d --force-recreate nginx
-            docker compose up -d
+
+            # Pre-flight TLS check. certbot-init is in profile "init" and never auto-starts.
+            # Probe the cert volume with a no-port helper container. If a valid cert is
+            # present we skip the bootstrap entirely; otherwise stop nginx (to free :80)
+            # and run certbot-init standalone.
+            CERT_DOMAIN=automation.alialahmad.com
+            if docker compose run --rm --no-deps --entrypoint sh certbot-init -c \
+                 "[ -f /etc/letsencrypt/live/$CERT_DOMAIN/fullchain.pem ] && openssl x509 -in /etc/letsencrypt/live/$CERT_DOMAIN/fullchain.pem -noout -subject 2>/dev/null | grep -q \"CN *= *$CERT_DOMAIN\"" 2>/dev/null; then
+              echo "[deploy] valid TLS cert present, skipping bootstrap"
+            else
+              echo "[deploy] no valid TLS cert, running standalone bootstrap"
+              docker compose stop nginx 2>/dev/null || true
+              docker compose rm -f nginx 2>/dev/null || true
+              docker compose run --rm --no-deps --service-ports certbot-init
+            fi
+
+            docker compose up -d --remove-orphans
             echo "=== nginx running config ===" && docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf
             docker image prune -f

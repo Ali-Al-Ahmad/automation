@@ -41,13 +41,16 @@ services:
       - "3000"
 
   # One-shot: issues a Let's Encrypt cert via the standalone HTTP-01 challenge
-  # (certbot binds :80 itself, so it must finish BEFORE nginx starts).
-  # Idempotent — if a valid cert for the domain is already in the volume, exits 0
-  # immediately without contacting Let's Encrypt.
-  # Override staging via:  CERT_STAGING=1 docker compose up -d
+  # (certbot binds :80 itself, so nothing else can have :80 when it runs).
+  # NOT in any default profile — it never auto-starts on `docker compose up`.
+  # The deploy workflow runs it explicitly via `docker compose run` only when
+  # the cert is missing, after stopping nginx to free :80.
+  # Idempotent — if a valid cert is already in the volume, exits 0 without
+  # contacting Let's Encrypt. Override staging with: CERT_STAGING=1 docker compose run --rm certbot-init
   certbot-init:
     image: certbot/certbot
     container_name: automation-certbot-init
+    profiles: ["init"]
     restart: "no"
     ports:
       - "80:80"
@@ -94,8 +97,6 @@ services:
     command: >
       /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
     depends_on:
-      certbot-init:
-        condition: service_completed_successfully
       frontend:
         condition: service_started
       backend:

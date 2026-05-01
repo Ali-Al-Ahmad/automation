@@ -96,28 +96,30 @@ Migrations are committed at [backend/prisma/migrations/](backend/prisma/migratio
 
 ### 6. TLS certificate
 
-Fully automatic. DNS for `automation.alialahmad.com` must already point to the server before the first `docker compose up`. After that, the `certbot-init` service in [docker-compose.yml](docker-compose.yml):
+Fully automatic. DNS for `automation.alialahmad.com` must point to the server before the first deploy. The deploy workflow then handles certificates per-run:
 
-1. On every `compose up`, checks the `certbot-etc` volume for an existing valid cert.
-2. If one exists → exits 0 immediately (no Let's Encrypt traffic, no rate-limit risk).
-3. If not → binds port 80 itself (nginx is held back via `depends_on: service_completed_successfully`), runs the standalone HTTP-01 challenge, writes the cert to the volume, exits.
+1. Probes the `certbot-etc` Docker volume for a valid cert (file exists *and* CN matches the domain).
+2. If yes → does nothing, just starts the stack. No Let's Encrypt traffic, no nginx interruption.
+3. If no → stops nginx (frees port 80), runs `certbot-init` standalone (`docker compose run --rm --service-ports certbot-init`), writes the cert into the volume, then starts the stack.
 
-Then nginx starts and the long-running `certbot` service renews every 12h via webroot. Nginx reloads itself every 6h to pick up renewed certs.
+`certbot-init` lives under Compose profile `init` so it never auto-starts. The long-running `certbot` service renews every 12h via webroot, and nginx reloads every 6h to pick up new material.
 
-**Test against Let's Encrypt staging first** to avoid the 5-duplicates-per-week production rate limit:
+**Test against Let's Encrypt staging first** to avoid the 5-duplicates-per-week production rate limit. From the deploy directory on the server:
 
 ```bash
-CERT_STAGING=1 docker compose up -d
-# verify cert is issued (will be untrusted — that's expected for staging)
-docker compose logs certbot-init
-
-# wipe staging cert and re-issue against production
-docker run --rm -v "$(basename $PWD)_certbot-etc:/etc/letsencrypt" \
-  certbot/certbot delete --cert-name automation.alialahmad.com --non-interactive
+docker compose stop nginx
+CERT_STAGING=1 docker compose run --rm --service-ports certbot-init
+# verify it issued (the cert will be untrusted — that's expected for staging)
+# wipe the staging cert before going to production:
+docker compose run --rm --no-deps --entrypoint sh certbot-init -c \
+  'rm -rf /etc/letsencrypt/live/automation.alialahmad.com \
+          /etc/letsencrypt/archive/automation.alialahmad.com \
+          /etc/letsencrypt/renewal/automation.alialahmad.com.conf'
+docker compose run --rm --service-ports certbot-init   # real cert
 docker compose up -d
 ```
 
-To force a re-issuance later (e.g. key compromise), delete the cert from the volume the same way and `docker compose up -d` will trigger `certbot-init` to issue a fresh one.
+To force a re-issuance later (e.g. key compromise), delete the cert with the same `rm -rf` snippet above and the next deploy will reissue automatically.
 
 ## Local dry-run
 
