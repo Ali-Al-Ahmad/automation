@@ -97,7 +97,7 @@ jobs:
             if [ -d nginx/default.conf ]; then
               docker compose stop nginx 2>/dev/null || true
               docker compose rm -f nginx 2>/dev/null || true
-              rm -rf nginx/default.conf
+              docker run --rm -v "$PWD/nginx:/x" alpine rm -rf /x/default.conf
             fi
 
       - name: Copy compose + backend .env to server
