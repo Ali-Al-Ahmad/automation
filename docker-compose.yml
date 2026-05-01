@@ -59,7 +59,6 @@ services:
       - certbot-www:/var/www/certbot
     environment:
       CERT_DOMAIN: automation.alialahmad.com
-      CERT_EMAIL: dev@loadless.ai
       CERT_STAGING: ${CERT_STAGING:-0}
     entrypoint:
       - /bin/sh
@@ -76,7 +75,7 @@ services:
         echo "[certbot-init] requesting cert for $$CERT_DOMAIN (staging=$$CERT_STAGING)..."
         certbot certonly --standalone \
           $$STAGING_FLAG \
-          --email "$$CERT_EMAIL" \
+          --register-unsafely-without-email \
           -d "$$CERT_DOMAIN" \
           --rsa-key-size 4096 \
           --agree-tos \
