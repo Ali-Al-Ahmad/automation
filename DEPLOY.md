@@ -88,13 +88,36 @@ The **private** key (`~/.ssh/automation_deploy`) goes into the `SERVER_SECRET` G
 
 ### 4. Firewall
 
-Open ports `3000` (frontend) and `3001` (backend) so the browser can reach both. Do **not** expose `5432` — Postgres only listens on the internal Docker network.
-
-For production, put a reverse proxy in front and stop publishing `3000`/`3001` to the host.
+Open ports `80` (HTTP, used for the ACME challenge and redirect) and `443` (HTTPS) on the host. `3000`/`3001`/`5432` stay closed — they only exist on the internal Docker network and are reached through nginx.
 
 ### 5. Initial Prisma migration
 
 Migrations are committed at [backend/prisma/migrations/](backend/prisma/migrations/) and applied by the backend container on every start (`prisma migrate deploy`). No manual step required for subsequent deploys.
+
+### 6. TLS certificate
+
+Fully automatic. DNS for `automation.alialahmad.com` must already point to the server before the first `docker compose up`. After that, the `certbot-init` service in [docker-compose.yml](docker-compose.yml):
+
+1. On every `compose up`, checks the `certbot-etc` volume for an existing valid cert.
+2. If one exists → exits 0 immediately (no Let's Encrypt traffic, no rate-limit risk).
+3. If not → binds port 80 itself (nginx is held back via `depends_on: service_completed_successfully`), runs the standalone HTTP-01 challenge, writes the cert to the volume, exits.
+
+Then nginx starts and the long-running `certbot` service renews every 12h via webroot. Nginx reloads itself every 6h to pick up renewed certs.
+
+**Test against Let's Encrypt staging first** to avoid the 5-duplicates-per-week production rate limit:
+
+```bash
+CERT_STAGING=1 docker compose up -d
+# verify cert is issued (will be untrusted — that's expected for staging)
+docker compose logs certbot-init
+
+# wipe staging cert and re-issue against production
+docker run --rm -v "$(basename $PWD)_certbot-etc:/etc/letsencrypt" \
+  certbot/certbot delete --cert-name automation.alialahmad.com --non-interactive
+docker compose up -d
+```
+
+To force a re-issuance later (e.g. key compromise), delete the cert from the volume the same way and `docker compose up -d` will trigger `certbot-init` to issue a fresh one.
 
 ## Local dry-run
 
@@ -139,7 +162,6 @@ Consider adding SHA-based tags alongside `:tag20` if you need easy rollbacks.
 
 ## Out of scope
 
-- **TLS / reverse proxy** — drop Caddy or Traefik in front of `frontend:3000` + `backend:3001` and stop publishing those host ports.
 - **Zero-downtime deploys** — a few seconds of downtime on container recreate.
 - **Database backups** — `pgdata` is a named volume. Add a nightly `pg_dump` cron when ready.
 - **Staging** — single environment for now.

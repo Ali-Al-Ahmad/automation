@@ -24,7 +24,7 @@ services:
       postgres:
         condition: service_healthy
     expose:
-      - "3001"        # ← changed from `ports` to `expose` (internal only)
+      - "3001"
 
   frontend:
     image: ${DOCKER_USERNAME}/automation-frontend:20
@@ -38,7 +38,46 @@ services:
     depends_on:
       - backend
     expose:
-      - "3000"        # ← changed from `ports` to `expose`
+      - "3000"
+
+  # One-shot: issues a Let's Encrypt cert via the standalone HTTP-01 challenge
+  # (certbot binds :80 itself, so it must finish BEFORE nginx starts).
+  # Idempotent — if a valid cert for the domain is already in the volume, exits 0
+  # immediately without contacting Let's Encrypt.
+  # Override staging via:  CERT_STAGING=1 docker compose up -d
+  certbot-init:
+    image: certbot/certbot
+    container_name: automation-certbot-init
+    restart: "no"
+    ports:
+      - "80:80"
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    environment:
+      CERT_DOMAIN: automation.alialahmad.com
+      CERT_EMAIL: dev@loadless.ai
+      CERT_STAGING: ${CERT_STAGING:-0}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        CERT="/etc/letsencrypt/live/$$CERT_DOMAIN/fullchain.pem"
+        if [ -f "$$CERT" ] && openssl x509 -in "$$CERT" -noout -subject 2>/dev/null | grep -q "CN *= *$$CERT_DOMAIN"; then
+          echo "[certbot-init] valid cert for $$CERT_DOMAIN already exists, skipping issuance"
+          exit 0
+        fi
+        STAGING_FLAG=""
+        [ "$$CERT_STAGING" = "1" ] && STAGING_FLAG="--staging"
+        echo "[certbot-init] requesting cert for $$CERT_DOMAIN (staging=$$CERT_STAGING)..."
+        certbot certonly --standalone \
+          $$STAGING_FLAG \
+          --email "$$CERT_EMAIL" \
+          -d "$$CERT_DOMAIN" \
+          --rsa-key-size 4096 \
+          --agree-tos \
+          --non-interactive
 
   nginx:
     image: nginx:alpine
@@ -46,11 +85,38 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot-etc:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    # Reload every 6h so renewed certs are picked up
+    command: >
+      /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
     depends_on:
-      - frontend
-      - backend
+      certbot-init:
+        condition: service_completed_successfully
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+
+  # Long-running renewer. Uses --webroot so nginx can keep :80 — the challenge
+  # is served from the shared certbot-www volume.
+  certbot:
+    image: certbot/certbot
+    container_name: automation-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    depends_on:
+      nginx:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
 
 volumes:
   pgdata:
+  certbot-etc:
+  certbot-www:
