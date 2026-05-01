@@ -81,7 +81,7 @@ jobs:
             echo "DATABASE_URL=postgresql://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}?schema=public"
             echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
-            echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}"
+            echo "CORS_ORIGIN=${CORS_ORIGIN:-https://alialahmad.com}"
           } > .env
           chmod 644 .env
 
