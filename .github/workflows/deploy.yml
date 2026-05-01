@@ -121,6 +121,7 @@ jobs:
             chmod 600 .env
             echo '${{ secrets.DOCKER_PASSWORD }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin
             docker compose pull
+            docker compose up -d --force-recreate nginx
             docker compose up -d
-            docker compose exec -T nginx nginx -t && docker compose exec -T nginx nginx -s reload
+            echo "=== nginx running config ===" && docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf
             docker image prune -f
