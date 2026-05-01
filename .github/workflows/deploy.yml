@@ -94,10 +94,10 @@ jobs:
           script: |
             set -euo pipefail
             cd "/home/${{ secrets.SERVER_USER }}"
-            if [ -d nginx/default.conf ]; then
+            if [ -e nginx ] && [ ! -w nginx ]; then
               docker compose stop nginx 2>/dev/null || true
               docker compose rm -f nginx 2>/dev/null || true
-              docker run --rm -v "$PWD/nginx:/x" alpine rm -rf /x/default.conf
+              docker run --rm -v "$PWD:/x" alpine rm -rf /x/nginx
             fi
 
       - name: Copy compose + backend .env to server
