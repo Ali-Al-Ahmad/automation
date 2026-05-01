@@ -81,7 +81,7 @@ jobs:
             echo "DATABASE_URL=postgresql://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}?schema=public"
             echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
-            echo "CORS_ORIGIN=${CORS_ORIGIN:-https://alialahmad.com}"
+            echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}"
           } > .env
           chmod 644 .env
 
@@ -123,5 +123,5 @@ jobs:
             docker compose pull
             docker compose up -d --force-recreate nginx
             docker compose up -d
-            echo "=== nginx running config ===" ; docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf || docker compose logs --tail 30 nginx || true
+            echo "=== nginx running config ===" && docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf
             docker image prune -f
