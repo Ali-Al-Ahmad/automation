@@ -1,4 +1,5 @@
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+console.log('[api-client] NEXT_PUBLIC_API_BASE_URL =', process.env.NEXT_PUBLIC_API_BASE_URL, '-> baseUrl =', baseUrl);
 
 export class ApiError extends Error {
   constructor(
