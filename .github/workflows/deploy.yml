@@ -66,6 +66,7 @@ jobs:
           : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD secret is required}"
           : "${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN secret is required}"
           : "${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID secret is required}"
+          : "${CORS_ORIGIN:?CORS_ORIGIN secret is required}"
           PG_USER="${POSTGRES_USER:-postgres}"
           PG_DB="${POSTGRES_DB:-automation}"
           {
@@ -81,7 +82,7 @@ jobs:
             echo "DATABASE_URL=postgresql://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}?schema=public"
             echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
             echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}"
-            echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}"
+            echo "CORS_ORIGIN=${CORS_ORIGIN}"
           } > .env
           chmod 644 .env
 
